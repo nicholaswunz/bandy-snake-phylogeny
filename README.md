@@ -1,8 +1,8 @@
-# Bisphenols alter thermal responses and performance 
+# The evolution and function of stripe patterns in snakes
 
 This repository contains code and data needed to reproduce the article:
 
-**Lei, J., Wu N. C., & xxx** Testing the role of stripes as anti-predator deception in snake-eating snakes (In progress) *Journal title*, **xx**, xxx-xxx, DOI: https://doi.org/10.1111/gcb.15127
+**Lei, J., Wu N. C., & xxx** The evolution and function of stripes in preventing cannibalism in snake-eating snakes: a phylogenetic and experimental approach (In progress) *Journal title*, **xx**, xxx-xxx, DOI: https://doi.org/10.1111/gcb.15127
 
 **Raw data**
 - ucrit_all.csv  - Raw Ucrit data used for the analysis.
