@@ -5,14 +5,16 @@ This repository contains code and data needed to reproduce the article:
 **Lei, J., Wu N. C., & xxx** The evolution and function of stripes in preventing cannibalism in snake-eating snakes: a phylogenetic and experimental approach (In progress) *Journal title*, **xx**, xxx-xxx, DOI: https://doi.org/10.1111/gcb.15127
 
 **Raw data**
-- ucrit_all.csv  - Raw Ucrit data used for the analysis.
-- enzyme_all.csv - CS and LHD data used for the analysis.
+- bandy_exp_data.csv - Raw behavioural data used for the analysis.
+- snake_diet_phylogeny.csv - Raw phylogeny data used for the analysis.
 
 **R codes**
-- BP-temp_analysis.R - Data cleaning, analysis and figure production.
+- snake_phylogeny_analysis.R - Data cleaning, analysis and figure production for the phylogenetic analysis.
+- bandy_exp_analysis.R - Data cleaning, analysis and figure production for the behavioural predation experiment.
+- geom_flat_violin.R - Function to create half violin plots.
 
 **Extra files**
-- CONPHYS-2020-161_SI.PDF - Supplementary file includes statistical outcomes and additional figures and descriptions from the main document.
+- CONPHYS-2020-161_SI.PDF - Supplementary file includes additional information, statistical outcomes and figures from the main document.
 
 ## Abstract
 To update
