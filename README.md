@@ -1,8 +1,8 @@
-# Evolution and function of banded stripe and ophiophagy in snakes
+# Evolution and function of banded rings and ophiophagy in snakes
 
 This repository contains code and data needed to reproduce the article:
 
-**Lei, J., Wu N. C., & Zhang Z.** A novel function of banded stripes to prevent cannibalism in snake-eating snakes (In submission) 
+**Lei, J., Wu N. C., & Zhang Z.** (In submission) A novel function of banded rings to prevent cannibalism in snake-eating snakes.
 
 **Raw data**
 - bandy_exp_data.csv - Raw behavioural data used for the analysis.
