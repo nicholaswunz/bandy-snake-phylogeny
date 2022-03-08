@@ -26,7 +26,6 @@ mytheme <- function() {
 } # set up plot theme
 
 # Set directory
-setwd('C:/Users/chwu6540/Dropbox (Personal)/Banded behaviour study') # on Desktop
 setwd('C:/Users/nicho/Dropbox (Personal)/Banded behaviour study') # on Laptop
 
 # Load data
@@ -49,7 +48,7 @@ aggregate(pred_attempt_bin ~ prey_type, adult_dat, mean)
 
 ## REPEATIBILITY ANALYSIS ## -----------------------------------------------------------------------------------------------------
 # Estimate repeatability of predation attempt within juvenile prey choice via Binomial GLMM approach
-rpt_model <- rpt(pred_attempt_bin ~ prey_type + (1|adult_ID), 
+rpt_model <- rptR::rpt(pred_attempt_bin ~ prey_type + (1|adult_ID), 
                  grname   = "adult_ID",
                  data     = adult_dat, 
                  datatype = "Binary",
@@ -58,7 +57,7 @@ rpt_model <- rpt(pred_attempt_bin ~ prey_type + (1|adult_ID),
                  parallel = TRUE)
 
 # Estimate repeatability of time to attack within juvenile prey choice via Poisson GLMM approach
-rpt_model_2 <- rpt(time_to_attack_s ~ prey_type + (1|adult_ID), 
+rpt_model_2 <- rptR::rpt(time_to_attack_s ~ prey_type + (1|adult_ID), 
                    grname   = "adult_ID",
                    data     = adult_dat, 
                    datatype = "Poisson",
@@ -91,7 +90,6 @@ performance::compare_performance(predAttempt_m1, predAttempt_m2, predAttempt_m3,
 predAttempt_model <- predAttempt_m4 # m4 was the best model
 
 summary(predAttempt_model)
-brms::fixef(predAttempt_model)
 brms::pp_check(predAttempt_model)
 
 ## PLOT FIG 2a ##
