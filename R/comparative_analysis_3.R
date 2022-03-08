@@ -39,9 +39,7 @@ mytheme <- function() {
 
 # Load data
 diet_dat   <- read.csv("snake_diet_phylogeny.csv")
-#phylo_tree <- ape::read.tree("squam_shl_new_Consensus_9755.tre") # Fully-sampled phylogeny
 phylo_tree <- ape::read.tree("squam_shl_new.tre") # Tree with molecular supermatrix 
-
 diet_dat$species_tree[duplicated(diet_dat$species_tree)] # check if there are duplicate species names
 
 diet_dat <- diet_dat %>%
@@ -130,47 +128,31 @@ timetree_relax <- ape::chronos(pruned_tree, lambda = 1, model = "relaxed", calib
 
 pruned_tree_cal <- timetree_disc # discrete model best
 
-#saveRDS(pruned_tree_cal, "pruned_tree_cal.rds")
-pruned_tree_cal  <- readRDS("pruned_tree_cal.rds")
-
-plot(pruned_tree_cal, cex = 0.3)
-axisPhylo()
-
 # check tree is ultrametric
 is.ultrametric(pruned_tree_cal) # TRUE
 
 # Create correlation matrix for analaysis
 phylo_cor <- vcv(pruned_tree_cal, cor = T)
-#saveRDS(phylo_cor, "phylo_cor.rds")
-phylo_cor <- readRDS("phylo_cor.rds")
 
 # Pearson correlation of subsetted data
 family_n_subset <- diet_phylo_dat %>% dplyr::group_by(family) %>% summarise(n_subset = n())
 family_n_full   <- diet_dat %>% dplyr::group_by(family) %>% summarise(n_full = n())
 family_n        <- merge(family_n_full, family_n_subset, by = "family", all = TRUE)
 family_cor      <- cor.test(family_n$n_full, family_n$n_subset, method = "pearson", use = "complete.obs")
-family_cor$estimate
-family_cor$p.value
 
 as.data.frame(family_n %>% group_by(family) %>% summarise(n_subset / n_full * 100)) # proportion of species represented
-
 ggplot(family_n, aes(x = log(n_full + 1), y = log(n_subset + 1))) + geom_point()+ mytheme() + xlab("Species per family (ln(n); full)") + ylab("Species per family (ln(n); strict)")
 
 ## PHYLOGENETIC SIGNAL AND ANCESTRAL STATE RECONSTRUCTION ## ---------------------------------------------------------------------------------------
 ## ASR of Ophiophagy (Continuous) ##
 ophio_freq     <- setNames(trait_dat$ophio_freq, rownames(trait_dat))
-#ophio_asr      <- phytools::fastAnc(pruned_tree_cal, ophio_freq, vars = TRUE, CI = TRUE)
 
 # Plot ASR
 ophio_freq_obj <- phytools::contMap(pruned_tree_cal, ophio_freq, plot = FALSE)
 ophio_freq_obj <- phytools::setMap(ophio_freq_obj, c("grey", "red"))
 
-# Fig 1a - internal (original pruned_tree - no ultrametric)
-#plot(ophio_freq_obj, type = "fan", legend = 0.7 * max(nodeHeights(pruned_tree)), lwd = 0.8, outline = FALSE, ftype = "off")
-
-## ASR of Ophiophagy and Pattern type (Discrete) ##
+## ASR of Pattern type (Discrete) ##
 # Map continuous trait evolution on the tree
-#ophio_matrix   <- setNames(trait_dat$ophiophagy_bin, rownames(trait_dat))
 pattern_matrix <- setNames(as.numeric(trait_dat$pattern_type), rownames(trait_dat))
 
 col_range <- colorRampPalette(c("grey", "red"))
@@ -179,7 +161,6 @@ names(ophio_col) <- levels(factor(trait_dat$ophio_freq))
 
 # Fig 1a
 pattern_col <- viridis::viridis(8) # set 8 discrete colours
-#diversitree::trait.plot(pruned_tree_cal, trait_dat, cols = list(ophiophagy_bin = c("grey", "red"), pattern_type = pattern_col), cex.lab = 0.00001, w = 0.06)
 diversitree::trait.plot(pruned_tree_cal, trait_dat,
                         cols = list(pattern_type = pattern_col, ophio_freq = ophio_col),
                         cex.lab = 0.00001, w = 0.06)
@@ -194,43 +175,24 @@ plot(ophio_freq_obj$tree,
      ylim    = get("last_plot.phylo", envir =.PlotPhyloEnv)$y.lim)
 
 # Phylogenetic signal via Pagel's Lambda: 0 = no correlation, 1 = correlation between species equal to Brownian expectation
-
 phytools::phylosig(pruned_tree, ophio_freq, method = "lambda", test = TRUE, nsim = 1000)
-#phytools::phylosig(pruned_tree_cal, ophio_matrix, method = "lambda", test = TRUE, nsim = 1000)
 phytools::phylosig(pruned_tree, pattern_matrix, method = "lambda", test = TRUE, nsim = 1000)
-
 
 ## ANCESTRAL STATE INFERENCE FOR OPHIOPHAGY STATUS VIA corHMM2.1 - ALL ## --------------------------------------------------------------------------
 ophio_dat <- diet_phylo_dat %>% dplyr::select(species_tree, ophiophagy_bin)
-geiger::name.check(pruned_tree$tree.label, ophio_dat$species_tree, data.names=NULL) #using geiger
-#picante::match.phylo.data(pruned_tree, ophio_dat)  #using picante
+geiger::name.check(pruned_tree$tree.label, ophio_dat$species_tree, data.names = NULL) #using geiger
 
 ## ER: Equal rates model ##
 ophio_ER <- corHMM::corHMM(pruned_tree_cal, ophio_dat, model = c("ER"), 
                            node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0), rate.cat = 1, get.tip.states = TRUE, nstarts = 100)
-#saveRDS(ophio_ER_ARD, "ophio_ER_ARD.rds")
-#ophio_ER <- readRDS("ophio_ER.rds")
-
-# Visualise model
-corHMM::plotMKmodel(ophio_ER) 
 
 ## ARD: All rates different model ##
 ophio_ARD <- corHMM::corHMM(pruned_tree_cal, ophio_dat, model = c("ARD"),
                             node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0), rate.cat = 1, get.tip.states = TRUE, nstarts = 100) 
-#ophio_ARD <- readRDS("ophio_ARD.rds")
-
-# Plot tree
-ophio_ARD_model       <- ophio_ARD$solution
-ophio_ARD_model[is.na(ophio_ARD_model)] <- 0
-diag(ophio_ARD_model) <- -rowSums(ophio_ARD_model)
-ophio_ARD_simmap      <- corHMM::makeSimmap(tree = pruned_tree_cal, data = ophio_dat, model = ophio_ARD_model, rate.cat = 1, nSim = 1, nCores = 1)
-ophio_ARD_cols        <- setNames(c("grey","#DF536B"), c("1","2"))
-phytools::plotSimmap(ophio_ARD_simmap[[1]], fsize = 0.001, lwd = 0.6, type = "fan", colors = ophio_ARD_cols)
 
 ## Model ARD/ARD: Hidden Markov model using ARD model in both matrices ##
 ophio_ARD_ARD <- corHMM::corHMM(pruned_tree_cal, ophio_dat, model = c("ARD"), 
                                 node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0), rate.cat = 2, get.tip.states = TRUE, nstarts = 100)
-#ophio_ARD_ARD <- readRDS("ophio_ARD_ARD.rds")
 
 ## Model ER/ARD: Hidden Markov model using ARD model and ER model as the two rate matrices ##
 # Construct two 'within' rate category rate.mat objects (R1 and R) - state-dependent processes
@@ -250,7 +212,6 @@ ophio_FullMat <- corHMM::getFullMat(list(ophio_R1_ER, ophio_R2_ARD), RateClassMa
 
 ophio_ER_ARD <- corHMM::corHMM(pruned_tree_cal, ophio_dat, rate.cat = 2, rate.mat = ophio_FullMat, 
                                node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0), get.tip.states = TRUE, nstarts = 100) 
-#ophio_ER_ARD <- readRDS("ophio_ER_ARD.rds")
 
 ## Model ER/ER: Hidden Markov model using two ER models as the two rate matrices ##
 ophio_FullMat2 <- corHMM::getFullMat(list(ophio_R1_ER, ophio_R2_ER), RateClassMat) # R1 and R2 assume a drift-like hypothesis where all transition rates are equal
@@ -260,7 +221,6 @@ ophio_FullMat2 <- corHMM::getFullMat(list(ophio_R1_ER, ophio_R2_ER), RateClassMa
 
 opio_ER_ER <- corHMM::corHMM(pruned_tree_cal, ophio_dat, rate.cat = 2, rate.mat = ophio_FullMat2, 
                              node.states  = "marginal", lewis.asc.bias = FALSE,  root.p = c(1,0), get.tip.states = TRUE, nstarts = 100) 
-#opio_ER_ER <- readRDS("opio_ER_ER.rds")
 
 ## ANCESTRAL STATE INFERENCE FOR BANDS STATUS VIA corHMM2.1 - ALL ## --------------------------------------------------------------------------
 band_dat <- diet_phylo_dat %>% dplyr::select(species_tree, band_bin)
@@ -268,17 +228,14 @@ band_dat <- diet_phylo_dat %>% dplyr::select(species_tree, band_bin)
 ## ER: Equal rates model ##
 band_ER <- corHMM::corHMM(pruned_tree_cal, band_dat, model = c("ER"), 
                            node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0), rate.cat = 1, get.tip.states = TRUE, nstarts = 100)
-#band_ER <- readRDS("band_ER.rds")
 
 ## ARD: All rates different model ##
 band_ARD <- corHMM::corHMM(pruned_tree_cal, band_dat, model = c("ARD"),
                             node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0), rate.cat = 1, get.tip.states = TRUE, nstarts = 100) 
-#band_ARD <- readRDS("band_ARD.rds")
 
 ## Model ARD/ARD: Hidden Markov model using ARD model in both matrices ##
 band_ARD_ARD <- corHMM::corHMM(pruned_tree_cal, band_dat, model = c("ARD"), 
                                 node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0), rate.cat = 2, get.tip.states = TRUE, nstarts = 100)
-#band_ARD_ARD <- readRDS("band_ARD_ARD.rds")
 
 ## Model ER/ARD: Hidden Markov model using ARD model and ER model as the two rate matrices ##
 # Construct two 'within' rate category rate.mat objects (R1 and R) - state-dependent processes
@@ -291,13 +248,11 @@ band_R2_ARD <- corHMM::getStateMat4Dat(band_dat, model = "ARD")$rate.mat # R2
 band_FullMat <- corHMM::getFullMat(list(band_R1_ER, band_R2_ARD), RateClassMat)
 band_ER_ARD <- corHMM::corHMM(pruned_tree_cal, band_dat, rate.cat = 2, rate.mat = band_FullMat, 
                                node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0), get.tip.states = TRUE, nstarts = 100) 
-#band_ER_ARD <- readRDS("band_ER_ARD.rds")
 
 ## Model ER/ER: Hidden Markov model using two ER models as the two rate matrices ##
 band_FullMat2 <- corHMM::getFullMat(list(band_R1_ER, band_R2_ER), RateClassMat) # R1 and R2 assume a drift-like hypothesis where all transition rates are equal
 band_ER_ER <- corHMM::corHMM(pruned_tree_cal, band_dat, rate.cat = 2, rate.mat = band_FullMat2, 
                              node.states  = "marginal", lewis.asc.bias = FALSE,  root.p = c(1,0), get.tip.states = TRUE, nstarts = 100) 
-#band_ER_ER <- readRDS("band_ER_ER.rds")
 
 ##Plotting the tree and model
 par(mfrow = c(1,2))
@@ -332,22 +287,14 @@ band_ophio_dat <- diet_phylo_dat %>% dplyr::select(species_tree, band_bin, ophio
 ## ER: Equal rates model ##
 band_ophio_ER <- corHMM::corHMM(pruned_tree_cal, band_ophio_dat, model = c("ER"), 
                           node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0,0,0), rate.cat = 1, get.tip.states = TRUE, nstarts = 100)
-#saveRDS(band_ophio_ER, "band_ophio_ER.rds")
-#band_ophio_ER <- readRDS("band_ophio_ER.rds")
-
-#corHMM::plotMKmodel(band_ophio_ER) 
 
 ## SYM: All rates different model ##
 band_ophio_SYM <- corHMM::corHMM(pruned_tree_cal, band_ophio_dat, model = c("SYM"),
                                  node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0,0,0), rate.cat = 1, get.tip.states = TRUE, nstarts = 100) 
-#saveRDS(band_ophio_SYM, "band_ophio_SYM.rds")
-#band_ophio_SYM <- readRDS("band_ophio_SYM.rds")
 
 ## ARD: All rates different model ##
 band_ophio_ARD <- corHMM::corHMM(pruned_tree_cal, band_ophio_dat, model = c("ARD"),
                            node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0,0,0), rate.cat = 1, get.tip.states = TRUE, nstarts = 100) 
-#saveRDS(band_ophio_ARD, "band_ophio_ARD.rds")
-#band_ophio_ARD <- readRDS("band_ophio_ARD.rds")
 
 # Construct two 'within' rate category rate.mat objects (R1 and R) - state-dependent processes
 # Used to index the unique parameters to be estimated
@@ -369,77 +316,30 @@ band_ophio_FullMat_mix <- corHMM::getFullMat(list(band_ophio_R1_ER, band_ophio_R
 
 band_ophio_ER_ARD <- corHMM::corHMM(pruned_tree_cal, band_ophio_dat, rate.cat = 2, rate.mat = band_ophio_FullMat_mix, 
                               node.states = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0,0,0), get.tip.states = TRUE, nstarts = 100) 
-#saveRDS(band_ophio_ER_ARD, "band_ophio_ER_ARD.rds")
-#band_ophio_ER_ARD <- readRDS("band_ophio_ER_ARD.rds")
 
 ## Model ER/ER: Hidden Markov model using two ER models as the two rate matrices ##
 band_FullMat_ER  <- corHMM::getFullMat(list(band_ophio_R1_ER, band_ophio_R2_ER), RateClassMat) # R1 and R2 assume a drift-like hypothesis where all transition rates are equal
 band_ophio_ER_ER <- corHMM::corHMM(pruned_tree_cal, band_ophio_dat, rate.cat = 2, rate.mat = band_FullMat_ER, 
                              node.states  = "marginal", lewis.asc.bias = FALSE,  root.p = c(1,0,0,0), get.tip.states = TRUE, nstarts = 100) 
-#saveRDS(band_ophio_ER_ER, "band_ophio_ER_ER.rds")
-#band_ophio_ER_ER <- readRDS("band_ophio_ER_ER.rds")
 
 ## Model SYM/SYM: Hidden Markov model using two ARD models as the two rate matrices ##
 band_FullMat_SYM   <- corHMM::getFullMat(list(band_ophio_R1_SYM, band_ophio_R2_SYM), RateClassMat) # R1 and R2 assume a drift-like hypothesis where all transition rates are equal
 band_ophio_SYM_SYM <- corHMM::corHMM(pruned_tree_cal, band_ophio_dat, rate.cat = 2, rate.mat = band_FullMat_SYM, 
                                      node.states  = "marginal", lewis.asc.bias = FALSE,  root.p = c(1,0,0,0), get.tip.states = TRUE, nstarts = 100) 
-#saveRDS(band_ophio_SYM_SYM, "band_ophio_SYM_SYM.rds")
-#band_ophio_SYM_SYM <- readRDS("band_ophio_SYM_SYM.rds")
 
 ## Model ARD/ARD: Hidden Markov model using two ARD models as the two rate matrices ##
 band_FullMat_ARD   <- corHMM::getFullMat(list(band_ophio_R1_ARD, band_ophio_R2_ARD), RateClassMat) # R1 and R2 assume a drift-like hypothesis where all transition rates are equal
 band_ophio_ARD_ARD <- corHMM::corHMM(pruned_tree_cal, band_ophio_dat, rate.cat = 2, rate.mat = band_FullMat_ARD, 
                              node.states  = "marginal", lewis.asc.bias = FALSE, root.p = c(1,0,0,0), get.tip.states = TRUE, nstarts = 100) 
-#saveRDS(band_ophio_ARD_ARD, "band_ophio_ARD_ARD.rds")
-#band_ophio_ARD_ARD <- readRDS("band_ophio_ARD_ARD.rds")
 
 band_ophio_R1_ARD_dual  <- corHMM::getStateMat4Dat(band_ophio_dat, model = "ARD", dual = TRUE)$rate.mat #R1
 band_ophio_R2_ARD_dual  <- corHMM::getStateMat4Dat(band_ophio_dat, model = "ARD", dual = TRUE)$rate.mat #R2
 band_FullMat_ARD_dual   <- corHMM::getFullMat(list(band_ophio_R1_ARD_dual, band_ophio_R2_ARD_dual), RateClassMat) # R1 and R2 assume a drift-like hypothesis where all transition rates are equal
 band_ophio_ARD_ARD_dual <- corHMM::corHMM(pruned_tree_cal, band_ophio_dat, rate.cat = 2, rate.mat = band_FullMat_ARD_dual, 
                                      node.states  = "marginal", lewis.asc.bias = FALSE,  root.p = c(1,0,0,0), get.tip.states = TRUE, nstarts = 100) 
-saveRDS(band_ophio_ARD_ARD_dual, "band_ophio_ARD_ARD_dual.rds")
-#band_ophio_ARD_ARD_dual <- readRDS("band_ophio_ARD_ARD_dual.rds")
-
-corHMM::plotMKmodel(band_ophio_ARD_ARD_dual) 
 
 band_ophio_ARD_ARD_2 <- corHMM::corHMM(pruned_tree, band_ophio_dat, rate.cat = 2, rate.mat = band_FullMat_ARD, 
                                      node.states  = "marginal", lewis.asc.bias = FALSE,  root.p = c(1,0,0,0), get.tip.states = TRUE, nstarts = 100)
-saveRDS(band_ophio_ARD_ARD_2, "band_ophio_ARD_ARD_2.rds")
-
-corHMM::plotMKmodel(band_ophio_ARD_ARD_2) 
-
-##Plotting the tree and model
-corHMM::plotRECON(pruned_tree_cal, band_ophio_ARD_ARD$states, 
-                  pie.cex = 0.3, 
-                  piecolors =(c("#808082", "#b98fc0", "#e6a0b8", "#fecab3",
-                                "#000004", "#721F81", "#CD4071", "#FD9567")),  
-                  cex = 0.2, 
-                  adj = 0.25) 
-add.scale.bar(pruned_tree_cal)
-cols <- setNames(c("grey", "#5384df"), levels(band_dat$band_bin))
-ape::tiplabels(pie = to.matrix(band_dat$band_bin, sort(unique(band_dat$band_bin))), piecol = cols, cex = 0.2)
-par(mfrow = c(1,1))
-
-# Plot tree
-band_ophio_ARD_model       <- band_ophio_ARD$solution
-band_ophio_ARD_model[is.na(band_ophio_ARD_model)] <- 0
-diag(band_ophio_ARD_model) <- -rowSums(band_ophio_ARD_model)
-band_ophio_ARD_simmap      <- corHMM::makeSimmap(tree = pruned_tree_cal, data = band_ophio_dat, model = band_ophio_ARD_model, rate.cat = 1, nSim = 1, nCores = 1)
-band_ophio_ARD_cols        <- setNames(c("#000004", "#721F81", "#CD4071", "#FD9567"), c("1","2","3","4"))
-
-phytools::plotSimmap(band_ophio_ARD_simmap[[1]], fsize = 0.001, lwd = 0.6, type = "fan", colors = band_ophio_ARD_cols)
-phytools::add.simmap.legend(colors = band_ophio_ARD_cols)
-
-band_ophio_ARD_ARD_model       <- band_ophio_ARD_ARD$solution
-band_ophio_ARD_ARD_model[is.na(band_ophio_ARD_ARD_model)] <- 0
-diag(band_ophio_ARD_ARD_model) <- -rowSums(band_ophio_ARD_ARD_model)
-band_ophio_ARD_ARD_simmap      <- corHMM::makeSimmap(tree = pruned_tree_cal, data = band_ophio_dat, model = band_ophio_ARD_ARD_model, rate.cat = 2, nSim = 1, nCores = 1)
-band_ophio_ARD_ARD_cols        <- setNames(c("#000004", "#721F81", "#CD4071", "#FD9567", "#808082", "#b98fc0", "#e6a0b8", "#fecab3"), 
-                                       c("1","2","3","4","5","6","7","8"))
-
-phytools::plotSimmap(band_ophio_ARD_ARD_simmap[[1]], fsize = 0.001, lwd = 0.6, type = " fan", colors = band_ophio_ARD_ARD_cols)
-phytools::add.simmap.legend(colors = band_ophio_ARD_ARD_cols)
 
 ## EVOLUTIONARY SCENARIO - MuHiSSE ## ---------------------------------------------------------------------------------------
 ## Sampling fractions
@@ -450,164 +350,97 @@ trans_rate <- hisse::TransMatMakerMuHiSSE(hidden.traits = 0)
 null_MuS   <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(1,1,1,1),
                             eps = c(1,1,1,1), root.p = c(1,0,0,0), hidden.states = FALSE,
                             trans.rate = trans_rate)
-saveRDS(null_MuS, "null_MuS.rds")
-#null_MuS <- readRDS("null_MuS.rds")
 
 ## MuSSE true
 true_MuS <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(1,2,3,4),
                            eps = c(1,1,1,1), root.p = c(1,0,0,0), hidden.states = FALSE,
                            trans.rate = trans_rate)
-saveRDS(true_MuS, "true_MuS.rds")
 
 ## Character-dependent MuHiSSE model with two hidden states
 trans_rate_CharDep_TwoHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 1)
 MuH_CD2 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(1,2,3,4,5,6,7,8),
                           eps = rep(1, 8), root.p = c(1,0,0,0,1,0,0,0), hidden.states = TRUE,
                           trans.rate = trans_rate_CharDep_TwoHidden)
-saveRDS(MuH_CD2, "MuH_CD2.rds")
 
 ## Character-independent MuHiSSE model with two hidden states 
 trans_rate_CharIndep_TwoHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 1, make.null = TRUE)
 MuH_CID2 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(1,1,1,1,2,2,2,2),
                            eps = rep(1, 8), root.p = c(1,0,0,0,1,0,0,0), hidden.states = TRUE,
                            trans.rate = trans_rate_CharIndep_TwoHidden)
-saveRDS(MuH_CID2, "MuH_CID2.rds")
 
 ## Character-dependent MuHiSSE model with three hidden states
 trans_rate_CharDep_ThreeHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 2)
 MuH_CD3 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(1,2,3,4,5,6,7,8,9,10,11,12),
                           eps = rep(1, 12), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                           trans.rate = trans_rate_CharDep_ThreeHidden)
-saveRDS(MuH_CD3, "MuH_CD3.rds")
 
 ## Character-independent MuHiSSE model with three hidden states 
 trans_rate_CharIndep_ThreeHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 2, make.null = TRUE)
 MuH_CID3 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(rep(1,4), rep(2,4), rep(3,4)),
                            eps = rep(1, 12), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                            trans.rate = trans_rate_CharIndep_ThreeHidden)
-saveRDS(MuH_CID3, "MuH_CID3.rds")
 
 ## Character-dependent MuHiSSE model with four hidden states
 trans_rate_CharDep_FourHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 3)
 MuH_CD4 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(1:16),
                           eps = rep(1, 16), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                           trans.rate = trans_rate_CharDep_FourHidden)
-saveRDS(MuH_CD4, "MuH_CD4.rds")
 
 ## Character-independent MuHiSSE model with four hidden states 
 trans_rate_CharIndep_FourHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 3, make.null = TRUE)
 MuH_CID4 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(rep(1,4), rep(2,4), rep(3,4), rep(4,4)),
                            eps = rep(1, 16), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                            trans.rate = trans_rate_CharIndep_FourHidden)
-saveRDS(MuH_CID4, "MuH_CID4.rds")
 
 ## Character-dependent MuHiSSE model with five hidden states
 trans_rate_CharDep_FiveHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 4)
 MuH_CD5 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(1:20),
                           eps = rep(1, 20), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                           trans.rate = trans_rate_CharDep_FiveHidden)
-saveRDS(MuH_CD5, "MuH_CD5.rds")
 
 ## Character-independent MuHiSSE model with five hidden states 
 trans_rate_CharIndep_FiveHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 4, make.null = TRUE)
 MuH_CID5 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(rep(1,4), rep(2,4), rep(3,4), rep(4,4), rep(5,4)),
                            eps = rep(1, 20), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                            trans.rate = trans_rate_CharIndep_FiveHidden)
-saveRDS(MuH_CID5, "MuH_CID5.rds")
 
 ## Character-dependent MuHiSSE model with six hidden states
 trans_rate_CharDep_SixHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 5)
 MuH_CD6 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(1:24),
                           eps = rep(1, 24), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                           trans.rate = trans_rate_CharDep_SixHidden)
-saveRDS(MuH_CD6, "MuH_CD6.rds")
 
 ## Character-independent MuHiSSE model with six hidden states 
 trans_rate_CharIndep_SixHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 5, make.null = TRUE)
 MuH_CID6 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(rep(1,4), rep(2,4), rep(3,4), rep(4,4), rep(5,4), rep(6,4)),
                            eps = rep(1, 24), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                            trans.rate = trans_rate_CharIndep_SixHidden)
-saveRDS(MuH_CID6, "MuH_CID6.rds")
 
 ## Character-dependent MuHiSSE model with seven hidden states
 trans_rate_CharDep_SevenHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 6)
 MuH_CD7 <-  hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(1:28),
                            eps = rep(1, 28), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                            trans.rate = trans_rate_CharDep_SevenHidden)
-saveRDS(MuH_CD7, "MuH_CD7.rds")
 
 ## Character-independent MuHiSSE model with seven hidden states 
 trans_rate_CharIndep_SevenHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 6, make.null = TRUE)
 MuH_CID7 <- hisse:: MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(rep(1,4), rep(2,4), rep(3,4), rep(4,4), rep(5,4), rep(6,4), rep(7, 4)),
                             eps = rep(1, 28), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                             trans.rate = trans_rate_CharIndep_SevenHidden)
-saveRDS(MuH_CID7, "MuH_CID7.rds")
 
 ## Character-dependent MuHiSSE model with eight hidden states
 trans_rate_CharDep_EightHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 7)
 MuH_CD8 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(1:32),
                           eps = rep(1, 32), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                           trans.rate = trans_rate_CharDep_EightHidden)
-saveRDS(MuH_CD8, "MuH_CD8.rds")
 
 ## Character-independent MuHiSSE model with eight hidden states 
 trans_rate_CharIndep_EightHidden <- hisse::TransMatMakerMuHiSSE(hidden.traits = 7, make.null = TRUE)
 MuH_CID8 <- hisse::MuHiSSE(phy = pruned_tree_cal, data = band_ophio_dat, f = sampling_fraction, turnover = c(rep(1,4), rep(2,4), rep(3,4), rep(4,4), rep(5,4), rep(6,4),rep(7,4), rep(8,4)),
                            eps = rep(1, 32), root.p = c(1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0), hidden.states = TRUE,
                            trans.rate = trans_rate_CharIndep_EightHidden)
-saveRDS(MuH_CID8, "MuH_CID8.rds")
 
 #Best fit model for Full Strict dataset is MuH_CD4
-MuH_CD4  <- readRDS("MuH_CD4.rds")
-
-# Extracting transition rate estimates
-Solution            <- MuH_CD4$solution 
-Solution_Transposed <- as.data.frame(t(as.matrix(Solution))) # Transpose the dataframe
-Solution_Rates      <- Solution_Transposed %>% select(contains("_"))
-
-## 1
-Solution_Rates1      <- Solution_Rates %>% select(contains("00") & contains("10"))
-Solution_Rates_00_10 <- Solution_Rates1 %>% select(contains("q00")) # q00 > q10
-Solution_Rates_10_00 <- Solution_Rates1 %>% select(contains("q10")) # q10 > q00
-
-## 2
-Solution_Rates_q01q00 <- Solution_Rates %>% select(contains("01") & contains("00"))
-Solution_Rates_00_01  <- Solution_Rates_q01q00 %>% select(contains("q00")) # q00 > q01
-Solution_Rates_01_00  <- Solution_Rates_q01q00 %>% select(contains("q01")) # q01 > q00
-
-## 3
-Solution_Rates_q01q11 <- Solution_Rates %>% select(contains("01") & contains("11"))
-Solution_Rates_01_11  <- Solution_Rates_q01q11 %>% select(contains("q01")) # q01 > q11
-Solution_Rates_11_01  <- Solution_Rates_q01q11 %>% select(contains("q11")) # q11 > q01
-
-## 4
-Solution_Rates_q10q11 <- Solution_Rates %>% select(contains("10") & contains("11"))
-Solution_Rates_10_11  <- Solution_Rates_q10q11 %>% select(contains("q10")) # q10 > q11
-Solution_Rates_11_10  <- Solution_Rates_q10q11 %>% select(contains("q11")) # q11 > q10
-
-
-StrictFull_qrates <- list(Solution_Rates_00_10, 
-                          Solution_Rates_10_00, 
-                          Solution_Rates_00_01, 
-                          Solution_Rates_01_00, 
-                          Solution_Rates_01_11, 
-                          Solution_Rates_11_01, 
-                          Solution_Rates_10_11, 
-                          Solution_Rates_11_10) %>%
-  setNames(c("00.10",
-             "10.00",
-             "00.01",
-             "01.00",
-             "01.11",
-             "11.01",
-             "10.11",
-             "11.10"))
-
-#Just sample one
-for(i in 1:length(StrictFull_qrates)){
-  MuHiSSEStrictFullRates <- sample(StrictFull_qrates[[i]][2]) * 100
-  MuHiSSEStrictFullRatesPrint <- print(round(MuHiSSEStrictFullRates, 4))
-}
 
 # Ancestral State Reconstruction
 MuH_CD4_recon <- hisse::MarginReconMuHiSSE(phy     = MuH_CD4$phy,
@@ -617,10 +450,6 @@ MuH_CD4_recon <- hisse::MarginReconMuHiSSE(phy     = MuH_CD4$phy,
                                            hidden.states = 4,
                                            AIC     = MuH_CD4$AICc,
                                            verbose = TRUE)
-saveRDS(MuH_CD4_recon, "MuH_CD4_recon.rds")
-#MuH_CD4_recon  <- readRDS("MuH_CD4_recon.rds")
-
-
 
 devtools::install_github("discindo/gghisse")
 library(ggtree)
@@ -706,7 +535,6 @@ family_plot <- family_sum_full %>%
   ylab("Percentage of ophiophagus species (%)") + xlab(NULL) +
   mytheme() + coord_flip()
 
-
 # PROBABILITY OF OPHIOPHAGY ##
 str(diet_dat)
 set.seed(1)
@@ -730,7 +558,6 @@ summary(diet_model)
 diet_dat$pattern_type <- as.factor(diet_dat$pattern_type)
 
 set.seed(1)
-
 library(Matrix)
 tree_vcvc_new <- as.matrix(Matrix::nearPD(phylo_cor)$mat) # use nearest positive definite matrix
 diet_phylo_model <- brms::brm(ophiophagy ~ -1 + pattern_type + (1 | gr(species_tree, cov = A)), 
@@ -742,12 +569,6 @@ diet_phylo_model <- brms::brm(ophiophagy ~ -1 + pattern_type + (1 | gr(species_t
                               control = list(adapt_delta = 0.999, max_treedepth = 15))
 
 summary(diet_phylo_model)
-brms::fixef(diet_model)
-brms::fixef(diet_phylo_model)
-brms::pp_check(diet_phylo_model)
-
-#saveRDS(diet_phylo_model, "diet_phylo_model.rds")
-diet_phylo_model <- readRDS("diet_phylo_model.rds")
 
 # compare non-phylogenetic model and phylogenetic-corrected model
 performance::compare_performance(diet_model, diet_phylo_model, rank = TRUE)
@@ -792,4 +613,4 @@ as.data.frame(diet_dat %>%
                 tidyr::complete(pattern_type, fill = list(n = 0, freq = 0))) # Turns implicit missing values into explicit missing values) 
 
 
-              
+            
