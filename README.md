@@ -7,6 +7,7 @@ This repository contains code and data needed to reproduce the article:
 **Raw data**
 - bandy_exp_data.csv - Raw behavioural data used for the analysis.
 - snake_diet_phylogeny.csv - Raw phylogeny data used for the analysis.
+- squam_shl_new.tre - Snake phylogeny from [Tonini *et al.* (2017)](https://datadryad.org/stash/dataset/doi:10.5061/dryad.db005).
 
 **R codes**
 - comparative_analysis.R - Data cleaning, analysis and figure production for the phylogenetic analysis.
