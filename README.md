@@ -4,6 +4,12 @@ This repository contains code and data needed to reproduce the article:
 
 **Lei, J., Wu N. C., & Zhang Z.** (In submission) A novel function of banded rings to prevent cannibalism in snake-eating snakes.
 
+**Zonodo repository:**
+
+**Wu N.C.** (2022) nicholaswunz/bandy-snake-phylogeny: Data for peer-review (v1.0). *Zenodo*. 
+
+[![DOI](https://zenodo.org/badge/325159891.svg)](https://zenodo.org/badge/latestdoi/325159891)
+
 **Raw data**
 - bandy_exp_data.csv - Raw behavioural data used for the analysis.
 - snake_diet_phylogeny.csv - Raw phylogeny data used for the analysis.
